@@ -25,8 +25,19 @@ declare module '@capacitor/cli' {
       launchAutoHide?: boolean;
 
       /**
+       * Duration for the fade out animation of the launch splash screen (in ms)
+       *
+       * Only available for Android, when using the Android 12 Splash Screen API.
+       *
+       * @since 4.2.0
+       * @default 200
+       * @example 3000
+       */
+      launchFadeOutDuration?: number;
+
+      /**
        * Color of the background of the Splash Screen in hex format, #RRGGBB or #RRGGBBAA.
-       * Doesn't work if `useDialog` is true.
+       * Doesn't work if `useDialog` is true or on launch when using the Android 12 API.
        *
        * @since 1.0.0
        * @example "#ffffffff"
@@ -35,6 +46,8 @@ declare module '@capacitor/cli' {
 
       /**
        * Name of the resource to be used as Splash Screen.
+       *
+       * Doesn't work on launch when using the Android 12 API.
        *
        * Only available on Android.
        *
@@ -47,7 +60,7 @@ declare module '@capacitor/cli' {
       /**
        * The [ImageView.ScaleType](https://developer.android.com/reference/android/widget/ImageView.ScaleType) used to scale
        * the Splash Screen image.
-       * Doesn't work if `useDialog` is true.
+       * Doesn't work if `useDialog` is true or on launch when using the Android 12 API.
        *
        * Only available on Android.
        *
@@ -67,7 +80,7 @@ declare module '@capacitor/cli' {
 
       /**
        * Show a loading spinner on the Splash Screen.
-       * Doesn't work if `useDialog` is true.
+       * Doesn't work if `useDialog` is true or on launch when using the Android 12 API.
        *
        * @since 1.0.0
        * @example true
@@ -76,19 +89,13 @@ declare module '@capacitor/cli' {
 
       /**
        * Style of the Android spinner.
-       * Doesn't work if `useDialog` is true.
+       * Doesn't work if `useDialog` is true or on launch when using the Android 12 API.
        *
        * @since 1.0.0
        * @default large
        * @example "large"
        */
-      androidSpinnerStyle?:
-        | 'horizontal'
-        | 'small'
-        | 'large'
-        | 'inverse'
-        | 'smallInverse'
-        | 'largeInverse';
+      androidSpinnerStyle?: 'horizontal' | 'small' | 'large' | 'inverse' | 'smallInverse' | 'largeInverse';
 
       /**
        * Style of the iOS spinner.
@@ -104,7 +111,7 @@ declare module '@capacitor/cli' {
 
       /**
        * Color of the spinner in hex format, #RRGGBB or #RRGGBBAA.
-       * Doesn't work if `useDialog` is true.
+       * Doesn't work if `useDialog` is true or on launch when using the Android 12 API.
        *
        * @since 1.0.0
        * @example "#999999"
@@ -113,6 +120,8 @@ declare module '@capacitor/cli' {
 
       /**
        * Hide the status bar on the Splash Screen.
+       *
+       * Doesn't work on launch when using the Android 12 API.
        *
        * Only available on Android.
        *
@@ -123,6 +132,8 @@ declare module '@capacitor/cli' {
 
       /**
        * Hide the status bar and the software navigation buttons on the Splash Screen.
+       *
+       * Doesn't work on launch when using the Android 12 API.
        *
        * Only available on Android.
        *
@@ -135,6 +146,8 @@ declare module '@capacitor/cli' {
        * If `useDialog` is set to true, configure the Dialog layout.
        * If `useDialog` is not set or false, use a layout instead of the ImageView.
        *
+       * Doesn't work on launch when using the Android 12 API.
+       *
        * Only available on Android.
        *
        * @since 1.1.0
@@ -146,6 +159,8 @@ declare module '@capacitor/cli' {
        * Use a Dialog instead of an ImageView.
        * If `layoutName` is not configured, it will use
        * a layout that uses the splash image as background.
+       *
+       * Doesn't work on launch when using the Android 12 API.
        *
        * Only available on Android.
        *
@@ -191,6 +206,9 @@ export interface HideOptions {
   /**
    * How long (in ms) to fade out.
    *
+   * On Android, if using the Android 12 Splash Screen API, it's not being used.
+   * Use launchFadeOutDuration configuration option instead.
+   *
    * @since 1.0.0
    * @default 200
    */
@@ -211,15 +229,3 @@ export interface SplashScreenPlugin {
    */
   hide(options?: HideOptions): Promise<void>;
 }
-
-/**
- * @deprecated Use `ShowOptions`.
- * @since 1.0.0
- */
-export type SplashScreenShowOptions = ShowOptions;
-
-/**
- * @deprecated Use `HideOptions`.
- * @since 1.0.0
- */
-export type SplashScreenHideOptions = HideOptions;

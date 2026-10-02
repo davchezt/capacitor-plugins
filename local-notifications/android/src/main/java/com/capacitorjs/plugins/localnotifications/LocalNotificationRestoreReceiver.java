@@ -1,7 +1,5 @@
 package com.capacitorjs.plugins.localnotifications;
 
-import static android.os.Build.VERSION.SDK_INT;
-
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -15,10 +13,8 @@ public class LocalNotificationRestoreReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (SDK_INT >= 24) {
-            UserManager um = context.getSystemService(UserManager.class);
-            if (um == null || !um.isUserUnlocked()) return;
-        }
+        UserManager um = context.getSystemService(UserManager.class);
+        if (um == null || !um.isUserUnlocked()) return;
 
         NotificationStorage storage = new NotificationStorage(context);
         List<String> ids = storage.getSavedNotificationIds();

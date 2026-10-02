@@ -26,7 +26,9 @@ public class ActionSheet extends BottomSheetDialogFragment {
     @Override
     public void onCancel(DialogInterface dialog) {
         super.onCancel(dialog);
-        this.cancelListener.onCancel();
+        if (this.cancelListener != null) {
+            this.cancelListener.onCancel();
+        }
     }
 
     private String title;
@@ -86,11 +88,13 @@ public class ActionSheet extends BottomSheetDialogFragment {
         LinearLayout layout = new LinearLayout(getContext());
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(layoutPaddingPx16, layoutPaddingPx16, layoutPaddingPx16, layoutPaddingPx16);
-        TextView ttv = new TextView(getContext());
-        ttv.setTextColor(Color.parseColor("#757575"));
-        ttv.setPadding(layoutPaddingPx8, layoutPaddingPx8, layoutPaddingPx8, layoutPaddingPx8);
-        ttv.setText(title);
-        layout.addView(ttv);
+        if (title != null) {
+            TextView ttv = new TextView(getContext());
+            ttv.setTextColor(Color.parseColor("#757575"));
+            ttv.setPadding(layoutPaddingPx8, layoutPaddingPx8, layoutPaddingPx8, layoutPaddingPx8);
+            ttv.setText(title);
+            layout.addView(ttv);
+        }
 
         for (int i = 0; i < options.length; i++) {
             final int optionIndex = i;
@@ -99,15 +103,13 @@ public class ActionSheet extends BottomSheetDialogFragment {
             tv.setTextColor(Color.parseColor("#000000"));
             tv.setPadding(layoutPaddingPx12, layoutPaddingPx12, layoutPaddingPx12, layoutPaddingPx12);
             tv.setText(options[i].getTitle());
-            tv.setOnClickListener(
-                view -> {
-                    Logger.debug("CliCKED: " + optionIndex);
+            tv.setOnClickListener((view) -> {
+                Logger.debug("CliCKED: " + optionIndex);
 
-                    if (listener != null) {
-                        listener.onSelect(optionIndex);
-                    }
+                if (listener != null) {
+                    listener.onSelect(optionIndex);
                 }
-            );
+            });
             layout.addView(tv);
         }
 

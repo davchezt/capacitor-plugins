@@ -1,5 +1,7 @@
 package com.capacitorjs.plugins.browser;
 
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
 import android.net.Uri;
 import com.getcapacitor.Logger;
 import com.getcapacitor.Plugin;
@@ -12,6 +14,16 @@ import com.getcapacitor.util.WebColor;
 public class BrowserPlugin extends Plugin {
 
     private Browser implementation;
+
+    public static BrowserControllerListener browserControllerListener;
+    private static BrowserControllerActivity browserControllerActivityInstance;
+
+    public static void setBrowserControllerListener(BrowserControllerListener listener) {
+        browserControllerListener = listener;
+        if (listener == null) {
+            browserControllerActivityInstance = null;
+        }
+    }
 
     public void load() {
         implementation = new Browser(getContext());
@@ -48,13 +60,34 @@ public class BrowserPlugin extends Plugin {
         }
 
         // open the browser and finish
-        implementation.open(url, toolbarColor);
-        call.resolve();
+
+        Intent intent = new Intent(getContext(), BrowserControllerActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        getContext().startActivity(intent);
+
+        Integer finalToolbarColor = toolbarColor;
+        setBrowserControllerListener((activity) -> {
+            try {
+                activity.open(implementation, url, finalToolbarColor);
+                browserControllerActivityInstance = activity;
+                call.resolve();
+            } catch (ActivityNotFoundException ex) {
+                Logger.error(getLogTag(), ex.getLocalizedMessage(), null);
+                call.reject("Unable to display URL");
+            }
+        });
     }
 
     @PluginMethod
     public void close(PluginCall call) {
-        call.unimplemented();
+        if (browserControllerActivityInstance != null) {
+            browserControllerActivityInstance = null;
+            Intent intent = new Intent(getContext(), BrowserControllerActivity.class);
+            intent.putExtra("close", true);
+            getContext().startActivity(intent);
+        }
+        call.resolve();
     }
 
     @Override

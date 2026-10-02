@@ -8,35 +8,27 @@ on:
         required: true
 jobs:
   publish-ios:
-    runs-on: macos-11
+    runs-on: macos-15
     if: github.event.inputs.plugins != '[]'
     timeout-minutes: 30
     strategy:
       matrix:
         plugin: ${{ fromJson(github.event.inputs.plugins) }}
     steps:
-      - run: sudo xcode-select --switch /Applications/Xcode_12.5.app
-      - uses: actions/setup-node@v1
+      - run: sudo xcode-select --switch /Applications/Xcode_26.0.app
+      - run: xcrun simctl list > /dev/null
+      - run: xcodebuild -downloadPlatform iOS
+      - uses: actions/setup-node@v6
         with:
-          node-version: 14.x
-      - uses: actions/checkout@v2
-        with:
-          ref: native-publish
+          node-version: 22
+      - uses: actions/checkout@v5
       - name: Install Cocoapods
-        run: | 
+        run: |
           gem install cocoapods
-      - name: Restore Dependency Cache
-        id: cache-modules
-        uses: actions/cache@v2
-        with:
-          path: |
-            node_modules
-            */node_modules
-          key: dependency-cache-${{ hashFiles('package.json', '*/package.json') }}
-      - run: npm install
       - name: Deploy to Cocoapods
         run: |
           set -eo pipefail
           npm run publish:cocoapod
         env:
           COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+        working-directory: ${{ matrix.plugin }}

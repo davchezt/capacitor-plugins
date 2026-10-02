@@ -4,14 +4,18 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
-import android.os.Build;
 import androidx.activity.OnBackPressedCallback;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.core.content.pm.PackageInfoCompat;
+import androidx.core.os.LocaleListCompat;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Logger;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.util.InternalUtils;
+import java.util.Locale;
 
 @CapacitorPlugin(name = "App")
 public class AppPlugin extends Plugin {
@@ -20,27 +24,26 @@ public class AppPlugin extends Plugin {
     private static final String EVENT_URL_OPEN = "appUrlOpen";
     private static final String EVENT_STATE_CHANGE = "appStateChange";
     private static final String EVENT_RESTORED_RESULT = "appRestoredResult";
+    private static final String EVENT_PAUSE = "pause";
+    private static final String EVENT_RESUME = "resume";
+    private boolean hasPausedEver = false;
+
+    private OnBackPressedCallback onBackPressedCallback;
 
     public void load() {
-        bridge
-            .getApp()
-            .setStatusChangeListener(
-                isActive -> {
-                    Logger.debug(getLogTag(), "Firing change: " + isActive);
-                    JSObject data = new JSObject();
-                    data.put("isActive", isActive);
-                    notifyListeners(EVENT_STATE_CHANGE, data, false);
-                }
-            );
-        bridge
-            .getApp()
-            .setAppRestoredListener(
-                result -> {
-                    Logger.debug(getLogTag(), "Firing restored result");
-                    notifyListeners(EVENT_RESTORED_RESULT, result.getWrappedResult(), true);
-                }
-            );
-        OnBackPressedCallback callback = new OnBackPressedCallback(true) {
+        boolean disableBackButtonHandler = getConfig().getBoolean("disableBackButtonHandler", false);
+
+        bridge.getApp().setStatusChangeListener((isActive) -> {
+            Logger.debug(getLogTag(), "Firing change: " + isActive);
+            JSObject data = new JSObject();
+            data.put("isActive", isActive);
+            notifyListeners(EVENT_STATE_CHANGE, data, false);
+        });
+        bridge.getApp().setAppRestoredListener((result) -> {
+            Logger.debug(getLogTag(), "Firing restored result");
+            notifyListeners(EVENT_RESTORED_RESULT, result.getWrappedResult(), true);
+        });
+        this.onBackPressedCallback = new OnBackPressedCallback(!disableBackButtonHandler) {
             @Override
             public void handleOnBackPressed() {
                 if (!hasListeners(EVENT_BACK_BUTTON)) {
@@ -55,12 +58,14 @@ public class AppPlugin extends Plugin {
                 }
             }
         };
-        getActivity().getOnBackPressedDispatcher().addCallback(getActivity(), callback);
+
+        getActivity().getOnBackPressedDispatcher().addCallback(getActivity(), this.onBackPressedCallback);
     }
 
     @PluginMethod
     public void exitApp(PluginCall call) {
         unsetAppListeners();
+        call.resolve();
         getBridge().getActivity().finish();
     }
 
@@ -68,17 +73,13 @@ public class AppPlugin extends Plugin {
     public void getInfo(PluginCall call) {
         JSObject data = new JSObject();
         try {
-            PackageInfo pinfo = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0);
+            PackageInfo pinfo = InternalUtils.getPackageInfo(getContext().getPackageManager(), getContext().getPackageName());
             ApplicationInfo applicationInfo = getContext().getApplicationInfo();
             int stringId = applicationInfo.labelRes;
             String appName = stringId == 0 ? applicationInfo.nonLocalizedLabel.toString() : getContext().getString(stringId);
             data.put("name", appName);
             data.put("id", pinfo.packageName);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                data.put("build", Long.toString(pinfo.getLongVersionCode()));
-            } else {
-                data.put("build", Integer.toString(pinfo.versionCode));
-            }
+            data.put("build", Integer.toString((int) PackageInfoCompat.getLongVersionCode(pinfo)));
             data.put("version", pinfo.versionName);
             call.resolve(data);
         } catch (Exception ex) {
@@ -107,11 +108,30 @@ public class AppPlugin extends Plugin {
 
     @PluginMethod
     public void minimizeApp(PluginCall call) {
-        Intent startMain = new Intent(Intent.ACTION_MAIN);
-        startMain.addCategory(Intent.CATEGORY_HOME);
-        startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        getActivity().startActivity(startMain);
+        getActivity().moveTaskToBack(true);
         call.resolve();
+    }
+
+    @PluginMethod
+    public void toggleBackButtonHandler(PluginCall call) {
+        if (this.onBackPressedCallback == null) {
+            call.reject("onBackPressedCallback is not set");
+            return;
+        }
+
+        Boolean enabled = call.getBoolean("enabled");
+
+        this.onBackPressedCallback.setEnabled(enabled);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void getAppLanguage(PluginCall call) {
+        JSObject ret = new JSObject();
+        LocaleListCompat appLocales = AppCompatDelegate.getApplicationLocales();
+        Locale appLocale = !appLocales.isEmpty() ? appLocales.get(0) : null;
+        ret.put("value", appLocale != null ? appLocale.getLanguage() : Locale.getDefault().getLanguage());
+        call.resolve(ret);
     }
 
     /**
@@ -132,6 +152,21 @@ public class AppPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("url", url.toString());
         notifyListeners(EVENT_URL_OPEN, ret, true);
+    }
+
+    @Override
+    protected void handleOnPause() {
+        super.handleOnPause();
+        hasPausedEver = true;
+        notifyListeners(EVENT_PAUSE, null);
+    }
+
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        if (hasPausedEver) {
+            notifyListeners(EVENT_RESUME, null);
+        }
     }
 
     @Override

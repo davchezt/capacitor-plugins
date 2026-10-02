@@ -2,26 +2,28 @@
 
 import type { PermissionState, PluginListenerHandle } from '@capacitor/core';
 
-export type PresentationOption = 'badge' | 'sound' | 'alert';
+export type PresentationOption = 'badge' | 'sound' | 'alert' | 'banner' | 'list';
 
 declare module '@capacitor/cli' {
   export interface PluginsConfig {
     /**
-     * On iOS you can configure the way the push notifications are displayed when the app is in foreground.
+     * You can configure the way the push notifications are displayed when the app is in foreground.
      */
     PushNotifications?: {
       /**
        * This is an array of strings you can combine. Possible values in the array are:
        *   - `badge`: badge count on the app icon is updated (default value)
        *   - `sound`: the device will ring/vibrate when the push notification is received
-       *   - `alert`: the push notification is displayed in a native dialog
+       *   - `alert`: **Deprecated on iOS.** Use `banner` and `list` instead. On Android, this value is still used to display the notification.
+       *   - `banner`: the push notification is displayed as a banner. On Android, defaults to the same behavior as `alert`.
+       *   - `list`: the push notification is displayed in the notification center. On Android, defaults to the same behavior as `alert`.
        *
        * An empty array can be provided if none of the options are desired.
        *
-       * Only available for iOS.
+       * badge is only available for iOS.
        *
        * @since 1.0.0
-       * @example ["badge", "sound", "alert"]
+       * @example ["badge", "sound", "alert", "banner", "list"]
        */
       presentationOptions: PresentationOption[];
     };
@@ -41,6 +43,15 @@ export interface PushNotificationsPlugin {
   register(): Promise<void>;
 
   /**
+   * Unregister the app from push notifications.
+   *
+   * This will delete a firebase token on Android, and unregister APNS on iOS.
+   *
+   * @since 5.0.0
+   */
+  unregister(): Promise<void>;
+
+  /**
    * Get a list of notifications that are visible on the notifications screen.
    *
    * @since 1.0.0
@@ -52,9 +63,7 @@ export interface PushNotificationsPlugin {
    *
    * @since 1.0.0
    */
-  removeDeliveredNotifications(
-    delivered: DeliveredNotifications,
-  ): Promise<void>;
+  removeDeliveredNotifications(delivered: DeliveredNotifications): Promise<void>;
 
   /**
    * Remove all the notifications from the notifications screen.
@@ -79,7 +88,7 @@ export interface PushNotificationsPlugin {
    *
    * @since 1.0.0
    */
-  deleteChannel(channel: Channel): Promise<void>;
+  deleteChannel(args: { id: string }): Promise<void>;
 
   /**
    * List the available notification channels.
@@ -93,7 +102,7 @@ export interface PushNotificationsPlugin {
   /**
    * Check permission to receive push notifications.
    *
-   * On Android the status is always granted because you can always
+   * On Android 12 and below the status is always granted because you can always
    * receive push notifications. If you need to check if the user allows
    * to display notifications, use local-notifications plugin.
    *
@@ -104,12 +113,12 @@ export interface PushNotificationsPlugin {
   /**
    * Request permission to receive push notifications.
    *
-   * On Android it doesn't prompt for permission because you can always
+   * On Android 12 and below it doesn't prompt for permission because you can always
    * receive push notifications.
    *
    * On iOS, the first time you use the function, it will prompt the user
    * for push notification permission and return granted or denied based
-   * on the user selection. On following calls it will currect status of
+   * on the user selection. On following calls it will get the current status of
    * the permission without prompting again.
    *
    * @since 1.0.0
@@ -123,10 +132,7 @@ export interface PushNotificationsPlugin {
    *
    * @since 1.0.0
    */
-  addListener(
-    eventName: 'registration',
-    listenerFunc: (token: Token) => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(eventName: 'registration', listenerFunc: (token: Token) => void): Promise<PluginListenerHandle>;
 
   /**
    * Called when the push notification registration finished with problems.
@@ -137,8 +143,8 @@ export interface PushNotificationsPlugin {
    */
   addListener(
     eventName: 'registrationError',
-    listenerFunc: (error: any) => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+    listenerFunc: (error: RegistrationError) => void,
+  ): Promise<PluginListenerHandle>;
 
   /**
    * Called when the device receives a push notification.
@@ -148,7 +154,7 @@ export interface PushNotificationsPlugin {
   addListener(
     eventName: 'pushNotificationReceived',
     listenerFunc: (notification: PushNotificationSchema) => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  ): Promise<PluginListenerHandle>;
 
   /**
    * Called when an action is performed on a push notification.
@@ -158,7 +164,7 @@ export interface PushNotificationsPlugin {
   addListener(
     eventName: 'pushNotificationActionPerformed',
     listenerFunc: (notification: ActionPerformed) => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  ): Promise<PluginListenerHandle>;
 
   /**
    * Remove all native listeners for this plugin.
@@ -196,6 +202,15 @@ export interface PushNotificationSchema {
    * @since 1.0.0
    */
   id: string;
+
+  /**
+   * The notification tag.
+   *
+   * Only available on Android (from push notifications).
+   *
+   * @since 4.0.0
+   */
+  tag?: string;
 
   /**
    * The number to display for the app icon badge.
@@ -292,6 +307,15 @@ export interface Token {
   value: string;
 }
 
+export interface RegistrationError {
+  /**
+   * Error message describing the registration failure.
+   *
+   * @since 4.0.0
+   */
+  error: string;
+}
+
 export interface DeliveredNotifications {
   /**
    * List of notifications that are visible on the
@@ -341,9 +365,10 @@ export interface Channel {
   /**
    * The level of interruption for notifications posted to this channel.
    *
+   * @default `3`
    * @since 1.0.0
    */
-  importance: Importance;
+  importance?: Importance;
 
   /**
    * The visibility of notifications posted to this channel.
@@ -387,7 +412,7 @@ export interface Channel {
  * The importance level. For more details, see the [Android Developer Docs](https://developer.android.com/reference/android/app/NotificationManager#IMPORTANCE_DEFAULT)
  * @since 1.0.0
  */
-export type Importance = 1 | 2 | 3 | 4 | 5;
+export type Importance = 0 | 1 | 2 | 3 | 4 | 5;
 
 /**
  * The notification visibility. For more details, see the [Android Developer Docs](https://developer.android.com/reference/androidx/core/app/NotificationCompat#VISIBILITY_PRIVATE)

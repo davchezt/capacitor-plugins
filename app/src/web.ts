@@ -1,18 +1,14 @@
 import { WebPlugin } from '@capacitor/core';
 
-import type { AppInfo, AppPlugin, AppLaunchUrl, AppState } from './definitions';
+import type { AppInfo, AppPlugin, AppLaunchUrl, AppState, AppLanguageCode } from './definitions';
 
 export class AppWeb extends WebPlugin implements AppPlugin {
   constructor() {
     super();
-    document.addEventListener(
-      'visibilitychange',
-      this.handleVisibilityChange,
-      false,
-    );
+    document.addEventListener('visibilitychange', this.handleVisibilityChange, false);
   }
 
-  exitApp(): never {
+  exitApp(): Promise<void> {
     throw this.unimplemented('Not implemented on web.');
   }
 
@@ -32,11 +28,26 @@ export class AppWeb extends WebPlugin implements AppPlugin {
     throw this.unimplemented('Not implemented on web.');
   }
 
+  async toggleBackButtonHandler(): Promise<void> {
+    throw this.unimplemented('Not implemented on web.');
+  }
+
   private handleVisibilityChange = () => {
     const data = {
       isActive: document.hidden !== true,
     };
 
     this.notifyListeners('appStateChange', data);
+    if (document.hidden) {
+      this.notifyListeners('pause', null);
+    } else {
+      this.notifyListeners('resume', null);
+    }
   };
+
+  async getAppLanguage(): Promise<AppLanguageCode> {
+    return {
+      value: navigator.language.split('-')[0].toLowerCase(),
+    };
+  }
 }

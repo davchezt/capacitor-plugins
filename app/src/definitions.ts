@@ -1,4 +1,23 @@
+/// <reference types="@capacitor/cli" />
+
 import type { PluginListenerHandle } from '@capacitor/core';
+
+declare module '@capacitor/cli' {
+  export interface PluginsConfig {
+    App?: {
+      /**
+       * Disable the plugin's default back button handling.
+       *
+       * Only available for Android.
+       *
+       * @since 7.1.0
+       * @default false
+       * @example true
+       */
+      disableBackButtonHandler?: boolean;
+    };
+  }
+}
 
 export interface AppInfo {
   /**
@@ -125,10 +144,28 @@ export interface BackButtonListenerEvent {
   canGoBack: boolean;
 }
 
+export interface ToggleBackButtonHandlerOptions {
+  /**
+   * Indicates whether to enable or disable default back button handling.
+   *
+   * @since 7.1.0
+   */
+  enabled: boolean;
+}
+
 export type StateChangeListener = (state: AppState) => void;
 export type URLOpenListener = (event: URLOpenListenerEvent) => void;
 export type RestoredListener = (event: RestoredListenerEvent) => void;
 export type BackButtonListener = (event: BackButtonListenerEvent) => void;
+
+export interface AppLanguageCode {
+  /**
+   * Two or Three character language code.
+   *
+   * @since 8.1.0
+   */
+  value: string;
+}
 
 export interface AppPlugin {
   /**
@@ -139,7 +176,7 @@ export interface AppPlugin {
    *
    * @since 1.0.0
    */
-  exitApp(): never;
+  exitApp(): Promise<void>;
 
   /**
    * Return information about the app.
@@ -172,14 +209,55 @@ export interface AppPlugin {
   minimizeApp(): Promise<void>;
 
   /**
-   * Listen for changes in the App's active state (whether the app is in the foreground or background)
+   * Get the app specific language locale code.
+   *
+   * @since 8.1.0
+   */
+  getAppLanguage(): Promise<AppLanguageCode>;
+
+  /**
+   * Enables or disables the plugin's back button handling during runtime.
+   *
+   * Only available for Android.
+   *
+   * @since 7.1.0
+   */
+  toggleBackButtonHandler(options: ToggleBackButtonHandlerOptions): Promise<void>;
+
+  /**
+   * Listen for changes in the app or the activity states.
+   *
+   * On iOS it's fired when the native [UIApplication.willResignActiveNotification](https://developer.apple.com/documentation/uikit/uiapplication/1622973-willresignactivenotification) and
+   * [UIApplication.didBecomeActiveNotification](https://developer.apple.com/documentation/uikit/uiapplication/1622953-didbecomeactivenotification) events get fired.
+   * On Android it's fired when the Capacitor's Activity [onResume](https://developer.android.com/reference/android/app/Activity#onResume()) and [onStop](https://developer.android.com/reference/android/app/Activity#onStop()) methods gets called.
+   * On Web it's fired when the document's visibilitychange gets fired.
    *
    * @since 1.0.0
    */
-  addListener(
-    eventName: 'appStateChange',
-    listenerFunc: StateChangeListener,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(eventName: 'appStateChange', listenerFunc: StateChangeListener): Promise<PluginListenerHandle>;
+
+  /**
+   * Listen for when the app or the activity are paused.
+   *
+   * On iOS it's fired when the native [UIApplication.didEnterBackgroundNotification](https://developer.apple.com/documentation/uikit/uiapplication/1623071-didenterbackgroundnotification) event gets fired.
+   * On Android it's fired when the Capacitor's Activity [onPause](https://developer.android.com/reference/android/app/Activity#onPause()) method gets called.
+   * On Web it's fired when the document's visibilitychange gets fired and document.hidden is true.
+   *
+   * @since 4.1.0
+   */
+  addListener(eventName: 'pause', listenerFunc: () => void): Promise<PluginListenerHandle>;
+
+  /**
+   * Listen for when the app or activity are resumed.
+   *
+   * On iOS it's fired when the native [UIApplication.willEnterForegroundNotification](https://developer.apple.com/documentation/uikit/uiapplication/1622944-willenterforegroundnotification) event gets fired.
+   * On Android it's fired when the Capacitor's Activity [onResume](https://developer.android.com/reference/android/app/Activity#onResume()) method gets called,
+   * but only after resume has fired first.
+   * On Web it's fired when the document's visibilitychange gets fired and document.hidden is false.
+   *
+   * @since 4.1.0
+   */
+  addListener(eventName: 'resume', listenerFunc: () => void): Promise<PluginListenerHandle>;
 
   /**
    * Listen for url open events for the app. This handles both custom URL scheme links as well
@@ -187,10 +265,7 @@ export interface AppPlugin {
    *
    * @since 1.0.0
    */
-  addListener(
-    eventName: 'appUrlOpen',
-    listenerFunc: URLOpenListener,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(eventName: 'appUrlOpen', listenerFunc: URLOpenListener): Promise<PluginListenerHandle>;
 
   /**
    * If the app was launched with previously persisted plugin call data, such as on Android
@@ -217,10 +292,7 @@ export interface AppPlugin {
    *
    * @since 1.0.0
    */
-  addListener(
-    eventName: 'appRestoredResult',
-    listenerFunc: RestoredListener,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(eventName: 'appRestoredResult', listenerFunc: RestoredListener): Promise<PluginListenerHandle>;
 
   /**
    * Listen for the hardware back button event (Android only). Listening for this event will disable the
@@ -229,10 +301,7 @@ export interface AppPlugin {
    *
    * @since 1.0.0
    */
-  addListener(
-    eventName: 'backButton',
-    listenerFunc: BackButtonListener,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(eventName: 'backButton', listenerFunc: BackButtonListener): Promise<PluginListenerHandle>;
 
   /**
    * Remove all native listeners for this plugin
@@ -241,15 +310,3 @@ export interface AppPlugin {
    */
   removeAllListeners(): Promise<void>;
 }
-
-/**
- * @deprecated Use `RestoredListenerEvent`.
- * @since 1.0.0
- */
-export type AppRestoredResult = RestoredListenerEvent;
-
-/**
- * @deprecated Use `URLOpenListenerEvent`.
- * @since 1.0.0
- */
-export type AppUrlOpen = URLOpenListenerEvent;

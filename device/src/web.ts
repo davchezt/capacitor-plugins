@@ -6,6 +6,7 @@ import type {
   DeviceInfo,
   DevicePlugin,
   GetLanguageCodeResult,
+  LanguageTag,
 } from './definitions';
 
 declare global {
@@ -18,13 +19,14 @@ declare global {
     InstallTrigger?: any;
     ApplePaySession?: any;
     chrome?: any;
+    MSStream?: any;
   }
 }
 
 export class DeviceWeb extends WebPlugin implements DevicePlugin {
   async getId(): Promise<DeviceId> {
     return {
-      uuid: this.getUid(),
+      identifier: this.getUid(),
     };
   }
 
@@ -38,7 +40,7 @@ export class DeviceWeb extends WebPlugin implements DevicePlugin {
 
     return {
       model: uaFields.model,
-      platform: <const>'web',
+      platform: 'web' as const,
       operatingSystem: uaFields.operatingSystem,
       osVersion: uaFields.osVersion,
       manufacturer: navigator.vendor,
@@ -66,6 +68,12 @@ export class DeviceWeb extends WebPlugin implements DevicePlugin {
   }
 
   async getLanguageCode(): Promise<GetLanguageCodeResult> {
+    return {
+      value: navigator.language.split('-')[0].toLowerCase(),
+    };
+  }
+
+  async getLanguageTag(): Promise<LanguageTag> {
     return {
       value: navigator.language,
     };
@@ -95,13 +103,8 @@ export class DeviceWeb extends WebPlugin implements DevicePlugin {
         } else {
           const tmpFields = fields.split('; ').pop();
           if (tmpFields) {
-            const lastParts = tmpFields
-              .replace(' like Mac OS X', '')
-              .split(' ');
-            uaFields.osVersion = lastParts[lastParts.length - 1].replace(
-              /_/g,
-              '.',
-            );
+            const lastParts = tmpFields.replace(' like Mac OS X', '').split(' ');
+            uaFields.osVersion = lastParts[lastParts.length - 1].replace(/_/g, '.');
           }
         }
       }
@@ -120,22 +123,16 @@ export class DeviceWeb extends WebPlugin implements DevicePlugin {
     }
 
     // Check for browsers based on non-standard javascript apis, only not user agent
-    const isFirefox = !!window.InstallTrigger;
     const isSafari = !!window.ApplePaySession;
     const isChrome = !!window.chrome;
+    const isFirefox = /Firefox/.test(ua);
     const isEdge = /Edg/.test(ua);
     const isFirefoxIOS = /FxiOS/.test(ua);
     const isChromeIOS = /CriOS/.test(ua);
     const isEdgeIOS = /EdgiOS/.test(ua);
 
     // FF and Edge User Agents both end with "/MAJOR.MINOR"
-    if (
-      isSafari ||
-      (isChrome && !isEdge) ||
-      isFirefoxIOS ||
-      isChromeIOS ||
-      isEdgeIOS
-    ) {
+    if (isSafari || (isChrome && !isEdge) || isFirefoxIOS || isChromeIOS || isEdgeIOS) {
       // Safari version comes as     "... Version/MAJOR.MINOR ..."
       // Chrome version comes as     "... Chrome/MAJOR.MINOR ..."
       // FirefoxIOS version comes as "... FxiOS/MAJOR.MINOR ..."
@@ -171,7 +168,7 @@ export class DeviceWeb extends WebPlugin implements DevicePlugin {
   }
 
   getUid(): string {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && window.localStorage) {
       let uid = window.localStorage.getItem('_capuid');
       if (uid) {
         return uid;
@@ -185,13 +182,10 @@ export class DeviceWeb extends WebPlugin implements DevicePlugin {
   }
 
   uuid4(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
-      /[xy]/g,
-      function (c) {
-        const r = (Math.random() * 16) | 0,
-          v = c === 'x' ? r : (r & 0x3) | 0x8;
-        return v.toString(16);
-      },
-    );
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0,
+        v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
   }
 }

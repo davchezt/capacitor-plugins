@@ -2,7 +2,7 @@
 
 The Browser API provides the ability to open an in-app browser and subscribe to browser events.
 
-On iOS, this uses `SFSafariViewController` and is compliant with leading OAuth service in-app-browser requirements.
+On iOS, this uses `SFSafariViewController`.
 
 ## Install
 
@@ -17,7 +17,7 @@ npx cap sync
 
 This plugin will use the following project variables (defined in your app's `variables.gradle` file):
 
-- `$androidxBrowserVersion`: version of `androidx.browser:browser` (default: `1.3.0`)
+- `androidxBrowserVersion`: version of `androidx.browser:browser` (default: `1.9.0`)
 
 ## Example
 
@@ -35,8 +35,8 @@ const openCapacitorSite = async () => {
 
 * [`open(...)`](#open)
 * [`close()`](#close)
-* [`addListener('browserFinished', ...)`](#addlistenerbrowserfinished)
-* [`addListener('browserPageLoaded', ...)`](#addlistenerbrowserpageloaded)
+* [`addListener('browserFinished', ...)`](#addlistenerbrowserfinished-)
+* [`addListener('browserPageLoaded', ...)`](#addlistenerbrowserpageloaded-)
 * [`removeAllListeners()`](#removealllisteners)
 * [Interfaces](#interfaces)
 
@@ -68,9 +68,7 @@ Open a page with the specified options.
 close() => Promise<void>
 ```
 
-Web & iOS only: Close an open browser window.
-
-No-op on other platforms.
+Close an open browser window.
 
 **Since:** 1.0.0
 
@@ -80,7 +78,7 @@ No-op on other platforms.
 ### addListener('browserFinished', ...)
 
 ```typescript
-addListener(eventName: 'browserFinished', listenerFunc: () => void) => Promise<PluginListenerHandle> & PluginListenerHandle
+addListener(eventName: 'browserFinished', listenerFunc: () => void) => Promise<PluginListenerHandle>
 ```
 
 Android & iOS only: Listen for the browser finished event.
@@ -91,7 +89,7 @@ It fires when the Browser is closed by the user.
 | **`eventName`**    | <code>'browserFinished'</code> |
 | **`listenerFunc`** | <code>() =&gt; void</code>     |
 
-**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt; & <a href="#pluginlistenerhandle">PluginListenerHandle</a></code>
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
 
 **Since:** 1.0.0
 
@@ -101,7 +99,7 @@ It fires when the Browser is closed by the user.
 ### addListener('browserPageLoaded', ...)
 
 ```typescript
-addListener(eventName: 'browserPageLoaded', listenerFunc: () => void) => Promise<PluginListenerHandle> & PluginListenerHandle
+addListener(eventName: 'browserPageLoaded', listenerFunc: () => void) => Promise<PluginListenerHandle>
 ```
 
 Android & iOS only: Listen for the page loaded event.
@@ -113,7 +111,7 @@ It is not invoked for any subsequent page loads.
 | **`eventName`**    | <code>'browserPageLoaded'</code> |
 | **`listenerFunc`** | <code>() =&gt; void</code>       |
 
-**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt; & <a href="#pluginlistenerhandle">PluginListenerHandle</a></code>
+**Returns:** <code>Promise&lt;<a href="#pluginlistenerhandle">PluginListenerHandle</a>&gt;</code>
 
 **Since:** 1.0.0
 
@@ -146,6 +144,8 @@ Represents the options passed to `open`.
 | **`windowName`**        | <code>string</code>                    | Web only: Optional target for browser open. Follows the `target` property for window.open. Defaults to _blank. Ignored on other platforms. | 1.0.0 |
 | **`toolbarColor`**      | <code>string</code>                    | A hex color to which the toolbar color is set.                                                                                             | 1.0.0 |
 | **`presentationStyle`** | <code>'fullscreen' \| 'popover'</code> | iOS only: The presentation style of the browser. Defaults to fullscreen. Ignored on other platforms.                                       | 1.0.0 |
+| **`width`**             | <code>number</code>                    | iOS only: The width the browser when using presentationStyle 'popover' on iPads. Ignored on other platforms.                               | 4.0.0 |
+| **`height`**            | <code>number</code>                    | iOS only: The height the browser when using presentationStyle 'popover' on iPads. Ignored on other platforms.                              | 4.0.0 |
 
 
 #### PluginListenerHandle

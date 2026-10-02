@@ -11,6 +11,9 @@ API](https://web.dev/web-share/)), though web support is currently spotty.
 npm install @capacitor/share
 npx cap sync
 ```
+## Android
+
+By default, Capacitor apps only allow to share files from caches folder. To make other Android folders shareable, they have to be added in `android/app/src/main/res/xml/file_paths.xml` file. Check the Specifying Available Files section in [FileProvider docs](https://developer.android.com/reference/androidx/core/content/FileProvider) for the available locations.
 
 ## Example
 
@@ -22,6 +25,28 @@ await Share.share({
   text: 'Really awesome thing you need to see right meow',
   url: 'http://ionicframework.com/',
   dialogTitle: 'Share with buddies',
+});
+
+// Share text only
+await Share.share({
+  text: 'Really awesome thing you need to see right meow',
+});
+
+// Share url only
+await Share.share({
+  url: 'http://ionicframework.com/',
+});
+
+// Share local file using url parameter
+const photo = await Camera.getPhoto(options);
+await Share.share({
+  url: photo.path,
+});
+
+// Share multiple files using files parameter
+const { photos } = await Camera.pickImages(options);
+await Share.share({
+  files: photos.map(photo => photo.path!),
 });
 ```
 
@@ -93,11 +118,12 @@ Show a Share modal for sharing content with other apps
 
 #### ShareOptions
 
-| Prop              | Type                | Description                                                                | Since |
-| ----------------- | ------------------- | -------------------------------------------------------------------------- | ----- |
-| **`title`**       | <code>string</code> | Set a title for any message. This will be the subject if sharing to email  | 1.0.0 |
-| **`text`**        | <code>string</code> | Set some text to share                                                     | 1.0.0 |
-| **`url`**         | <code>string</code> | Set a URL to share, can be http, https or file:// URL                      | 1.0.0 |
-| **`dialogTitle`** | <code>string</code> | Set a title for the share modal. This option is only supported on Android. | 1.0.0 |
+| Prop              | Type                  | Description                                                                         | Since |
+| ----------------- | --------------------- | ----------------------------------------------------------------------------------- | ----- |
+| **`title`**       | <code>string</code>   | Set a title for any message. This will be the subject if sharing to email           | 1.0.0 |
+| **`text`**        | <code>string</code>   | Set some text to share                                                              | 1.0.0 |
+| **`url`**         | <code>string</code>   | Set a URL to share, can be http, https or file:// URL                               | 1.0.0 |
+| **`files`**       | <code>string[]</code> | Array of file:// URLs of the files to be shared. Only supported on iOS and Android. | 4.1.0 |
+| **`dialogTitle`** | <code>string</code>   | Set a title for the share modal. This option is only supported on Android.          | 1.0.0 |
 
 </docgen-api>

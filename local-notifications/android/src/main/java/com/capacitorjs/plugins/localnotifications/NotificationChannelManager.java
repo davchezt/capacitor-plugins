@@ -54,12 +54,8 @@ public class NotificationChannelManager {
                 call.reject("Channel missing name");
                 return;
             }
-            if (call.getInt(CHANNEL_IMPORTANCE) != null) {
-                channel.put(CHANNEL_IMPORTANCE, call.getInt(CHANNEL_IMPORTANCE));
-            } else {
-                call.reject("Channel missing importance");
-                return;
-            }
+
+            channel.put(CHANNEL_IMPORTANCE, call.getInt(CHANNEL_IMPORTANCE, NotificationManager.IMPORTANCE_DEFAULT));
             channel.put(CHANNEL_DESCRIPTION, call.getString(CHANNEL_DESCRIPTION, ""));
             channel.put(CHANNEL_VISIBILITY, call.getInt(CHANNEL_VISIBILITY, NotificationCompat.VISIBILITY_PUBLIC));
             channel.put(CHANNEL_SOUND, call.getString(CHANNEL_SOUND, null));
@@ -132,7 +128,7 @@ public class NotificationChannelManager {
                 channel.put(CHANNEL_SOUND, notificationChannel.getSound());
                 channel.put(CHANNEL_VIBRATE, notificationChannel.shouldVibrate());
                 channel.put(CHANNEL_USE_LIGHTS, notificationChannel.shouldShowLights());
-                channel.put(CHANNEL_LIGHT_COLOR, String.format("#%06X", (0xFFFFFF & notificationChannel.getLightColor())));
+                channel.put(CHANNEL_LIGHT_COLOR, String.format("#%06X", 0xFFFFFF & notificationChannel.getLightColor()));
                 Logger.debug(Logger.tags("NotificationChannel"), "visibility " + notificationChannel.getLockscreenVisibility());
                 Logger.debug(Logger.tags("NotificationChannel"), "importance " + notificationChannel.getImportance());
                 channels.put(channel);

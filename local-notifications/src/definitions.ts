@@ -2,10 +2,12 @@
 
 import type { PermissionState, PluginListenerHandle } from '@capacitor/core';
 
+export type LocalNotificationPresentationOption = 'badge' | 'sound' | 'banner' | 'list';
+
 declare module '@capacitor/cli' {
   export interface PluginsConfig {
     /**
-     * On Android, the Local Notifications can be configured with the following options:
+     * The Local Notifications can be configured with the following options:
      */
     LocalNotifications?: {
       /**
@@ -35,11 +37,11 @@ declare module '@capacitor/cli' {
       /**
        * Set the default notification sound for notifications.
        *
-       * On Android 26+ it sets the default channel sound and can't be
+       * On Android 8+ it sets the default channel sound and can't be
        * changed unless the app is uninstalled.
        *
        * If the audio file is not found, it will result in the default system
-       * sound being played on Android 21-25 and no sound on Android 26+.
+       * sound being played on Android 7.x and no sound on Android 8+.
        *
        * Only available for Android.
        *
@@ -47,6 +49,22 @@ declare module '@capacitor/cli' {
        * @example "beep.wav"
        */
       sound?: string;
+
+      /**
+       * This is an array of strings you can combine. Possible values in the array are:
+       *   - `badge`: badge count on the app icon is updated (default value)
+       *   - `sound`: the device will ring/vibrate when the notification is received
+       *   - `banner`: the notification is displayed as a banner
+       *   - `list`: the notification is displayed in the notification center
+       *
+       * An empty array can be provided if none of the options are desired.
+       *
+       * Only available for iOS.
+       *
+       * @since 8.2.0
+       * @example ["badge", "sound", "banner", "list"]
+       */
+      presentationOptions?: LocalNotificationPresentationOption[];
     };
   }
 }
@@ -92,13 +110,34 @@ export interface LocalNotificationsPlugin {
   areEnabled(): Promise<EnabledResult>;
 
   /**
+   * Get a list of notifications that are visible on the notifications screen.
+   *
+   * @since 4.0.0
+   */
+  getDeliveredNotifications(): Promise<DeliveredNotifications>;
+
+  /**
+   * Remove the specified notifications from the notifications screen.
+   *
+   * @since 4.0.0
+   */
+  removeDeliveredNotifications(delivered: DeliveredNotifications): Promise<void>;
+
+  /**
+   * Remove all the notifications from the notifications screen.
+   *
+   * @since 4.0.0
+   */
+  removeAllDeliveredNotifications(): Promise<void>;
+
+  /**
    * Create a notification channel.
    *
    * Only available for Android.
    *
    * @since 1.0.0
    */
-  createChannel(channel: NotificationChannel): Promise<void>;
+  createChannel(channel: Channel): Promise<void>;
 
   /**
    * Delete a notification channel.
@@ -107,7 +146,7 @@ export interface LocalNotificationsPlugin {
    *
    * @since 1.0.0
    */
-  deleteChannel(channel: NotificationChannel): Promise<void>;
+  deleteChannel(args: { id: string }): Promise<void>;
 
   /**
    * Get a list of notification channels.
@@ -133,6 +172,30 @@ export interface LocalNotificationsPlugin {
   requestPermissions(): Promise<PermissionStatus>;
 
   /**
+   * Direct user to the application settings screen to configure exact alarms.
+   *
+   * In the event that a user changes the settings from granted to denied, the application
+   * will restart and any notification scheduled with an exact alarm will be deleted.
+   *
+   * On Android < 12, the user will NOT be directed to the application settings screen, instead this function will
+   * return `granted`.
+   *
+   * Only available on Android.
+   *
+   * @since 6.0.0
+   */
+  changeExactNotificationSetting(): Promise<SettingsPermissionStatus>;
+
+  /**
+   * Check application setting for using exact alarms.
+   *
+   * Only available on Android.
+   *
+   * @since 6.0.0
+   */
+  checkExactNotificationSetting(): Promise<SettingsPermissionStatus>;
+
+  /**
    * Listen for when notifications are displayed.
    *
    * @since 1.0.0
@@ -140,7 +203,7 @@ export interface LocalNotificationsPlugin {
   addListener(
     eventName: 'localNotificationReceived',
     listenerFunc: (notification: LocalNotificationSchema) => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  ): Promise<PluginListenerHandle>;
 
   /**
    * Listen for when an action is performed on a notification.
@@ -150,7 +213,7 @@ export interface LocalNotificationsPlugin {
   addListener(
     eventName: 'localNotificationActionPerformed',
     listenerFunc: (notificationAction: ActionPerformed) => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  ): Promise<PluginListenerHandle>;
 
   /**
    * Remove all listeners for this plugin.
@@ -520,6 +583,8 @@ export interface LocalNotificationSchema {
   summaryText?: string;
   /**
    * The notification identifier.
+   * On Android it's a 32-bit int.
+   * So the value should be between -2147483648 and 2147483647 inclusive.
    *
    * @since 1.0.0
    */
@@ -542,8 +607,8 @@ export interface LocalNotificationSchema {
    *
    * Recommended format is `.wav` because is supported by both iOS and Android.
    *
-   * Only available for iOS and Android < 26.
-   * For Android 26+ use channelId of a channel configured with the desired sound.
+   * Only available for iOS and Android 7.x.
+   * For Android 8+ use channelId of a channel configured with the desired sound.
    *
    * If the sound file is not found, (i.e. empty string or wrong name)
    * the default system notification sound will be used.
@@ -630,11 +695,40 @@ export interface LocalNotificationSchema {
    * Sets `summaryArgument` on the
    * [`UNMutableNotificationContent`](https://developer.apple.com/documentation/usernotifications/unmutablenotificationcontent).
    *
-   * Only available for iOS 12+.
+   * Only available for iOS.
    *
    * @since 1.0.0
+   * @deprecated Use `relevanceScore` instead. This property is ignored on iOS 15+.
    */
   summaryArgument?: string;
+
+  /**
+   * The score the system uses to determine if the notification is the
+   * featured notification when the system groups the app's notifications.
+   *
+   * The value must be between 0 and 1, where 0 is the least relevant and
+   * 1 is the most relevant. The default value is 0.
+   *
+   * Sets `relevanceScore` on the
+   * [`UNMutableNotificationContent`](https://developer.apple.com/documentation/usernotifications/unmutablenotificationcontent).
+   *
+   * Only available for iOS.
+   *
+   * @since 8.1.0
+   */
+  relevanceScore?: number;
+
+  /**
+   * The interruption level that indicates the priority and delivery timing of a notification.
+   *
+   * Sets `interruptionLevel` on the
+   * [`UNMutableNotificationContent`](https://developer.apple.com/documentation/usernotifications/unmutablenotificationcontent).
+   *
+   * Only available for iOS.
+   *
+   * @since 8.1.0
+   */
+  interruptionLevel?: InterruptionLevel;
 
   /**
    * Used to group multiple notifications.
@@ -673,7 +767,7 @@ export interface LocalNotificationSchema {
    * [`NotificationCompat.Builder`](https://developer.android.com/reference/androidx/core/app/NotificationCompat.Builder)
    * with the provided value.
    *
-   * Only available for Android 26+.
+   * Only available for Android 8+.
    *
    * @since 1.0.0
    */
@@ -715,6 +809,15 @@ export interface LocalNotificationSchema {
    * @since 1.0.0
    */
   inboxList?: string[];
+
+  /**
+   * If true, notification will not appear while app is in the foreground.
+   *
+   * Only available for iOS.
+   *
+   * @since 5.0.0
+   */
+  silent?: boolean;
 }
 
 /**
@@ -744,8 +847,6 @@ export interface Schedule {
 
   /**
    * Allow this notification to fire while in [Doze](https://developer.android.com/training/monitoring-device-state/doze-standby)
-   *
-   * Only available for Android 23+.
    *
    * Note that these notifications can only fire [once per 9 minutes, per app](https://developer.android.com/training/monitoring-device-state/doze-standby#assessing_your_app).
    *
@@ -791,15 +892,23 @@ export interface ScheduleOn {
   second?: number;
 }
 
-export type ScheduleEvery =
-  | 'year'
-  | 'month'
-  | 'two-weeks'
-  | 'week'
-  | 'day'
-  | 'hour'
-  | 'minute'
-  | 'second';
+export type ScheduleEvery = 'year' | 'month' | 'two-weeks' | 'week' | 'day' | 'hour' | 'minute' | 'second';
+
+/**
+ * The interruption level that indicates the priority and delivery timing of a notification.
+ *
+ * - `active`: The system presents the notification immediately, lights up the screen, and can play a sound.
+ * - `critical`: The system presents the notification immediately, lights up the screen, and bypasses the mute switch to play a sound.
+ *   Requires the [Critical Alerts entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.usernotifications.critical-alerts).
+ * - `passive`: The system adds the notification to the notification list without lighting up the screen or playing a sound.
+ * - `timeSensitive`: The system presents the notification immediately, lights up the screen, can play a sound, and breaks through system notification controls.
+ *   Requires the Time Sensitive Notifications capability. Without it, the notification may not break through stricter Focus modes such as Do Not Disturb.
+ *   Even with the capability, the user can disable Time Sensitive notifications per Focus mode in Settings.
+ *   See [Time Sensitive notifications](https://developer.apple.com/documentation/usernotifications/unnotificationinterruptionlevel/timesensitive) for more details.
+ *
+ * @since 8.1.0
+ */
+export type InterruptionLevel = 'active' | 'critical' | 'passive' | 'timeSensitive';
 
 export interface ListChannelsResult {
   /**
@@ -817,6 +926,15 @@ export interface PermissionStatus {
    * @since 1.0.0
    */
   display: PermissionState;
+}
+
+export interface SettingsPermissionStatus {
+  /**
+   * Permission state of using exact alarms.
+   *
+   * @since 6.0.0
+   */
+  exact_alarm: PermissionState;
 }
 
 export interface ActionPerformed {
@@ -854,6 +972,121 @@ export interface EnabledResult {
    * @since 1.0.0
    */
   value: boolean;
+}
+
+export interface DeliveredNotificationSchema {
+  /**
+   * The notification identifier.
+   *
+   * @since 4.0.0
+   */
+  id: number;
+
+  /**
+   * The notification tag.
+   *
+   * Only available on Android.
+   *
+   * @since 4.0.0
+   */
+  tag?: string;
+  /**
+   * The title of the notification.
+   *
+   * @since 4.0.0
+   */
+  title: string;
+
+  /**
+   * The body of the notification, shown below the title.
+   *
+   * @since 4.0.0
+   */
+  body: string;
+
+  /**
+   * The configured group of the notification.
+   *
+   *
+   * Only available for Android.
+   *
+   * @since 4.0.0
+   */
+  group?: string;
+
+  /**
+   * If this notification is the summary for a group of notifications.
+   *
+   * Only available for Android.
+   *
+   * @since 4.0.0
+   */
+  groupSummary?: boolean;
+
+  /**
+   * Any additional data that was included in the
+   * notification payload.
+   *
+   * Only available for Android.
+   *
+   * @since 4.0.0
+   */
+  data?: any;
+
+  /**
+   * Extra data to store within this notification.
+   *
+   * Only available for iOS.
+   *
+   * @since 4.0.0
+   */
+  extra?: any;
+
+  /**
+   * The attachments for this notification.
+   *
+   * Only available for iOS.
+   *
+   * @since 1.0.0
+   */
+  attachments?: Attachment[];
+
+  /**
+   * Action type ssociated with this notification.
+   *
+   * Only available for iOS.
+   *
+   * @since 4.0.0
+   */
+  actionTypeId?: string;
+
+  /**
+   * Schedule used to fire this notification.
+   *
+   * Only available for iOS.
+   *
+   * @since 4.0.0
+   */
+  schedule?: Schedule;
+
+  /**
+   * Sound that was used when the notification was displayed.
+   *
+   * Only available for iOS.
+   *
+   * @since 4.0.0
+   */
+  sound?: string;
+}
+
+export interface DeliveredNotifications {
+  /**
+   * List of notifications that are visible on the
+   * notifications screen.
+   *
+   * @since 1.0.0
+   */
+  notifications: DeliveredNotificationSchema[];
 }
 
 export interface Channel {
@@ -897,9 +1130,10 @@ export interface Channel {
   /**
    * The level of interruption for notifications posted to this channel.
    *
+   * @default `3`
    * @since 1.0.0
    */
-  importance: Importance;
+  importance?: Importance;
 
   /**
    * The visibility of notifications posted to this channel.
@@ -956,7 +1190,7 @@ export enum Weekday {
  * The importance level. For more details, see the [Android Developer Docs](https://developer.android.com/reference/android/app/NotificationManager#IMPORTANCE_DEFAULT)
  * @since 1.0.0
  */
-export type Importance = 1 | 2 | 3 | 4 | 5;
+export type Importance = 0 | 1 | 2 | 3 | 4 | 5;
 
 /**
  * The notification visibility. For more details, see the [Android Developer Docs](https://developer.android.com/reference/androidx/core/app/NotificationCompat#VISIBILITY_PRIVATE)

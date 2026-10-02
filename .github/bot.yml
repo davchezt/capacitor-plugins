@@ -6,9 +6,11 @@ tasks:
     condition: 'payload.label.name == "needs reproduction"'
     config:
       comment: |
-        This issue may need more information before it can be addressed. In particular, it will need a reliable Code Reproduction that demonstrates the issue.
+        This issue needs more information before it can be addressed.
+        In particular, the reporter needs to provide a minimal sample app that demonstrates the issue.
+        If no sample app is provided within 7 days, the issue will be closed.
 
-        Please see the Contributing Guide for [how to create a Code Reproduction](https://github.com/ionic-team/capacitor/blob/HEAD/CONTRIBUTING.md#creating-a-code-reproduction).
+        Please see the Contributing Guide for [how to create a Sample App](https://github.com/ionic-team/capacitor/blob/HEAD/CONTRIBUTING.md#creating-a-code-reproduction).
 
         Thanks!
         Ionitron 💙
@@ -26,28 +28,7 @@ tasks:
     config:
       label: 'needs reply'
       exclude-labeler: true
-  - name: add-label
-    on:
-      issues:
-        types: [opened]
-    condition: |-
-      !(await getTeamMembers('capacitor')).includes(payload.sender.login)
-    config:
-      label: 'triage'
   - name: add-platform-labels
     on:
       issues:
         types: [opened, edited]
-  - name: assign-to-project
-    on:
-      issues:
-        types: [opened]
-      pull_request:
-        types: [opened]
-    condition: |-
-      (await getTeamMembers('capacitor')).includes(payload.sender.login)
-    config:
-      columns:
-        issue: 10495656
-        pr: 10495659
-        draft-pr: 10495658

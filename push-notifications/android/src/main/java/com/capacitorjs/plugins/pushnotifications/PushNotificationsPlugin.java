@@ -1,35 +1,47 @@
 package com.capacitorjs.plugins.pushnotifications;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Looper;
 import android.service.notification.StatusBarNotification;
-import com.getcapacitor.Bridge;
-import com.getcapacitor.JSArray;
-import com.getcapacitor.JSObject;
-import com.getcapacitor.Plugin;
-import com.getcapacitor.PluginCall;
-import com.getcapacitor.PluginHandle;
-import com.getcapacitor.PluginMethod;
+import androidx.core.app.NotificationCompat;
+import com.getcapacitor.*;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.firebase.iid.FirebaseInstanceId;
-import com.google.firebase.iid.InstanceIdResult;
+import com.getcapacitor.annotation.PermissionCallback;
+import com.google.android.gms.tasks.Tasks;
+import com.google.firebase.messaging.CommonNotificationBuilder;
 import com.google.firebase.messaging.FirebaseMessaging;
+import com.google.firebase.messaging.ImageDownload;
+import com.google.firebase.messaging.NotificationParams;
 import com.google.firebase.messaging.RemoteMessage;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-@CapacitorPlugin(name = "PushNotifications", permissions = @Permission(strings = {}, alias = "receive"))
+@CapacitorPlugin(
+    name = "PushNotifications",
+    permissions = @Permission(strings = { Manifest.permission.POST_NOTIFICATIONS }, alias = PushNotificationsPlugin.PUSH_NOTIFICATIONS)
+)
 public class PushNotificationsPlugin extends Plugin {
+
+    private static final int IMAGE_DOWNLOAD_TIMEOUT_SECONDS = 5;
+    static final String PUSH_NOTIFICATIONS = "receive";
 
     public static Bridge staticBridge = null;
     public static RemoteMessage lastMessage = null;
@@ -50,7 +62,7 @@ public class PushNotificationsPlugin extends Plugin {
             lastMessage = null;
         }
 
-        notificationChannelManager = new NotificationChannelManager(getActivity(), notificationManager);
+        notificationChannelManager = new NotificationChannelManager(getActivity(), notificationManager, getConfig());
     }
 
     @Override
@@ -62,11 +74,9 @@ public class PushNotificationsPlugin extends Plugin {
             JSObject dataObject = new JSObject();
             for (String key : bundle.keySet()) {
                 if (key.equals("google.message_id")) {
-                    notificationJson.put("id", bundle.get(key));
+                    notificationJson.put("id", bundle.getString(key));
                 } else {
-                    Object value = bundle.get(key);
-                    String valueStr = (value != null) ? value.toString() : null;
-                    dataObject.put(key, valueStr);
+                    dataObject.put(key, bundle.get(key));
                 }
             }
             notificationJson.put("data", dataObject);
@@ -78,62 +88,77 @@ public class PushNotificationsPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void checkPermissions(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            JSObject permissionsResultJSON = new JSObject();
+            permissionsResultJSON.put("receive", "granted");
+            call.resolve(permissionsResultJSON);
+        } else {
+            super.checkPermissions(call);
+        }
+    }
+
+    @PluginMethod
+    public void requestPermissions(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || getPermissionState(PUSH_NOTIFICATIONS) == PermissionState.GRANTED) {
+            JSObject permissionsResultJSON = new JSObject();
+            permissionsResultJSON.put("receive", "granted");
+            call.resolve(permissionsResultJSON);
+        } else {
+            requestPermissionForAlias(PUSH_NOTIFICATIONS, call, "permissionsCallback");
+        }
+    }
+
+    @PluginMethod
     public void register(PluginCall call) {
         FirebaseMessaging.getInstance().setAutoInitEnabled(true);
-        FirebaseInstanceId
-            .getInstance()
-            .getInstanceId()
-            .addOnSuccessListener(
-                getActivity(),
-                new OnSuccessListener<InstanceIdResult>() {
-                    @Override
-                    public void onSuccess(InstanceIdResult instanceIdResult) {
-                        sendToken(instanceIdResult.getToken());
-                    }
+        FirebaseMessaging.getInstance()
+            .getToken()
+            .addOnCompleteListener((task) -> {
+                if (!task.isSuccessful()) {
+                    sendError(task.getException().getLocalizedMessage());
+                    return;
                 }
-            );
-        FirebaseInstanceId
-            .getInstance()
-            .getInstanceId()
-            .addOnFailureListener(
-                new OnFailureListener() {
-                    public void onFailure(Exception e) {
-                        sendError(e.getLocalizedMessage());
-                    }
-                }
-            );
+                sendToken(task.getResult());
+            });
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void unregister(PluginCall call) {
+        FirebaseMessaging.getInstance().setAutoInitEnabled(false);
+        FirebaseMessaging.getInstance().deleteToken();
         call.resolve();
     }
 
     @PluginMethod
     public void getDeliveredNotifications(PluginCall call) {
         JSArray notifications = new JSArray();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            StatusBarNotification[] activeNotifications = notificationManager.getActiveNotifications();
+        StatusBarNotification[] activeNotifications = notificationManager.getActiveNotifications();
 
-            for (StatusBarNotification notif : activeNotifications) {
-                JSObject jsNotif = new JSObject();
+        for (StatusBarNotification notif : activeNotifications) {
+            JSObject jsNotif = new JSObject();
 
-                jsNotif.put("id", notif.getId());
+            jsNotif.put("id", notif.getId());
+            jsNotif.put("tag", notif.getTag());
 
-                Notification notification = notif.getNotification();
-                if (notification != null) {
-                    jsNotif.put("title", notification.extras.getCharSequence(Notification.EXTRA_TITLE));
-                    jsNotif.put("body", notification.extras.getCharSequence(Notification.EXTRA_TEXT));
-                    jsNotif.put("group", notification.getGroup());
-                    jsNotif.put("groupSummary", 0 != (notification.flags & Notification.FLAG_GROUP_SUMMARY));
+            Notification notification = notif.getNotification();
+            if (notification != null) {
+                jsNotif.put("title", notification.extras.getCharSequence(Notification.EXTRA_TITLE));
+                jsNotif.put("body", notification.extras.getCharSequence(Notification.EXTRA_TEXT));
+                jsNotif.put("group", notification.getGroup());
+                jsNotif.put("groupSummary", 0 != (notification.flags & Notification.FLAG_GROUP_SUMMARY));
 
-                    JSObject extras = new JSObject();
+                JSObject extras = new JSObject();
 
-                    for (String key : notification.extras.keySet()) {
-                        extras.put(key, notification.extras.get(key));
-                    }
-
-                    jsNotif.put("data", extras);
+                for (String key : notification.extras.keySet()) {
+                    extras.put(key, notification.extras.get(key));
                 }
 
-                notifications.put(jsNotif);
+                jsNotif.put("data", extras);
             }
+
+            notifications.put(jsNotif);
         }
 
         JSObject result = new JSObject();
@@ -145,23 +170,24 @@ public class PushNotificationsPlugin extends Plugin {
     public void removeDeliveredNotifications(PluginCall call) {
         JSArray notifications = call.getArray("notifications");
 
-        List<Integer> ids = new ArrayList<>();
         try {
             for (Object o : notifications.toList()) {
                 if (o instanceof JSONObject) {
                     JSObject notif = JSObject.fromJSONObject((JSONObject) o);
+                    String tag = notif.getString("tag");
                     Integer id = notif.getInteger("id");
-                    ids.add(id);
+
+                    if (tag == null) {
+                        notificationManager.cancel(id);
+                    } else {
+                        notificationManager.cancel(tag, id);
+                    }
                 } else {
                     call.reject("Expected notifications to be a list of notification objects");
                 }
             }
         } catch (JSONException e) {
             call.reject(e.getMessage());
-        }
-
-        for (int id : ids) {
-            notificationManager.cancel(id);
         }
 
         call.resolve();
@@ -229,8 +255,47 @@ public class PushNotificationsPlugin extends Plugin {
 
         RemoteMessage.Notification notification = remoteMessage.getNotification();
         if (notification != null) {
-            remoteMessageData.put("title", notification.getTitle());
-            remoteMessageData.put("body", notification.getBody());
+            String title = notification.getTitle();
+            String body = notification.getBody();
+            String[] presentation = getConfig().getArray("presentationOptions");
+            if (presentation != null) {
+                List<String> presentationList = Arrays.asList(presentation);
+                if (presentationList.contains("alert") || presentationList.contains("banner") || presentationList.contains("list")) {
+                    Bundle bundle = null;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        try {
+                            ApplicationInfo applicationInfo = getContext()
+                                .getPackageManager()
+                                .getApplicationInfo(
+                                    getContext().getPackageName(),
+                                    PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA)
+                                );
+                            bundle = applicationInfo.metaData;
+                        } catch (PackageManager.NameNotFoundException e) {
+                            e.printStackTrace();
+                        }
+                    } else {
+                        bundle = getBundleLegacy();
+                    }
+
+                    if (bundle != null) {
+                        NotificationParams params = new NotificationParams(remoteMessage.toIntent().getExtras());
+
+                        String channelId = CommonNotificationBuilder.getOrCreateChannel(
+                            getContext(),
+                            params.getNotificationChannelId(),
+                            bundle
+                        );
+
+                        CommonNotificationBuilder.DisplayNotificationInfo notificationInfo =
+                            CommonNotificationBuilder.createNotificationInfo(getContext(), getContext(), params, channelId, bundle);
+
+                        showForegroundNotification(notificationInfo, notification.getImageUrl());
+                    }
+                }
+            }
+            remoteMessageData.put("title", title);
+            remoteMessageData.put("body", body);
             remoteMessageData.put("click_action", notification.getClickAction());
 
             Uri link = notification.getLink();
@@ -242,6 +307,61 @@ public class PushNotificationsPlugin extends Plugin {
         notifyListeners("pushNotificationReceived", remoteMessageData, true);
     }
 
+    private void showForegroundNotification(CommonNotificationBuilder.DisplayNotificationInfo notificationInfo, Uri imageUrl) {
+        Runnable showNotification = () -> {
+            try {
+                applyNotificationImage(notificationInfo.notificationBuilder, imageUrl);
+            } catch (RuntimeException e) {
+                Logger.error("Unexpected error while applying notification image", e);
+            } finally {
+                notificationManager.notify(notificationInfo.tag, notificationInfo.id, notificationInfo.notificationBuilder.build());
+            }
+        };
+
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            showNotification.run();
+            return;
+        }
+
+        ExecutorService displayExecutor = Executors.newSingleThreadExecutor();
+        displayExecutor.execute(() -> {
+            try {
+                showNotification.run();
+            } finally {
+                displayExecutor.shutdown();
+            }
+        });
+    }
+
+    private void applyNotificationImage(NotificationCompat.Builder notificationBuilder, Uri imageUrl) {
+        if (imageUrl == null) {
+            return;
+        }
+
+        ImageDownload imageDownload = ImageDownload.create(imageUrl.toString());
+        if (imageDownload == null) {
+            return;
+        }
+
+        ExecutorService imageExecutor = Executors.newSingleThreadExecutor();
+        try {
+            imageDownload.start(imageExecutor);
+            Bitmap bitmap = Tasks.await(imageDownload.getTask(), IMAGE_DOWNLOAD_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            notificationBuilder.setLargeIcon(bitmap);
+            notificationBuilder.setStyle(new NotificationCompat.BigPictureStyle().bigPicture(bitmap).bigLargeIcon((Bitmap) null));
+        } catch (ExecutionException e) {
+            Logger.warn("Failed to download notification image: " + e.getCause());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Logger.warn("Notification image download was interrupted");
+        } catch (TimeoutException e) {
+            Logger.warn("Notification image download timed out");
+        } finally {
+            imageDownload.close();
+            imageExecutor.shutdownNow();
+        }
+    }
+
     public static PushNotificationsPlugin getPushNotificationsInstance() {
         if (staticBridge != null && staticBridge.getWebView() != null) {
             PluginHandle handle = staticBridge.getPlugin("PushNotifications");
@@ -251,5 +371,23 @@ public class PushNotificationsPlugin extends Plugin {
             return (PushNotificationsPlugin) handle.getInstance();
         }
         return null;
+    }
+
+    @PermissionCallback
+    private void permissionsCallback(PluginCall call) {
+        this.checkPermissions(call);
+    }
+
+    @SuppressWarnings("deprecation")
+    private Bundle getBundleLegacy() {
+        try {
+            ApplicationInfo applicationInfo = getContext()
+                .getPackageManager()
+                .getApplicationInfo(getContext().getPackageName(), PackageManager.GET_META_DATA);
+            return applicationInfo.metaData;
+        } catch (PackageManager.NameNotFoundException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 }

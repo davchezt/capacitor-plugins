@@ -9,9 +9,7 @@ export interface BrowserPlugin {
   open(options: OpenOptions): Promise<void>;
 
   /**
-   * Web & iOS only: Close an open browser window.
-   *
-   * No-op on other platforms.
+   * Close an open browser window.
    *
    * @since 1.0.0
    */
@@ -23,10 +21,7 @@ export interface BrowserPlugin {
    *
    * @since 1.0.0
    */
-  addListener(
-    eventName: 'browserFinished',
-    listenerFunc: () => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(eventName: 'browserFinished', listenerFunc: () => void): Promise<PluginListenerHandle>;
 
   /**
    * Android & iOS only: Listen for the page loaded event.
@@ -35,10 +30,7 @@ export interface BrowserPlugin {
    *
    * @since 1.0.0
    */
-  addListener(
-    eventName: 'browserPageLoaded',
-    listenerFunc: () => void,
-  ): Promise<PluginListenerHandle> & PluginListenerHandle;
+  addListener(eventName: 'browserPageLoaded', listenerFunc: () => void): Promise<PluginListenerHandle>;
 
   /**
    * Remove all native listeners for this plugin.
@@ -87,6 +79,24 @@ export interface OpenOptions {
    * @since 1.0.0
    */
   presentationStyle?: 'fullscreen' | 'popover';
+
+  /**
+   * iOS only: The width the browser when using presentationStyle 'popover' on iPads.
+   *
+   * Ignored on other platforms.
+   *
+   * @since 4.0.0
+   */
+  width?: number;
+
+  /**
+   * iOS only: The height the browser when using presentationStyle 'popover' on iPads.
+   *
+   * Ignored on other platforms.
+   *
+   * @since 4.0.0
+   */
+  height?: number;
 }
 
 /**

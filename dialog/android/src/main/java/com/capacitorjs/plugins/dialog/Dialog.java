@@ -40,36 +40,29 @@ public class Dialog {
         final String okButtonTitle,
         final Dialog.OnResultListener listener
     ) {
-        final String alertTitle = title == null ? "Alert" : title;
         final String alertOkButtonTitle = okButtonTitle == null ? "OK" : okButtonTitle;
 
-        new Handler(Looper.getMainLooper())
-            .post(
-                () -> {
-                    AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        new Handler(Looper.getMainLooper()).post(() -> {
+            AlertDialog.Builder builder = new AlertDialog.Builder(context);
 
-                    builder
-                        .setMessage(message)
-                        .setTitle(alertTitle)
-                        .setPositiveButton(
-                            alertOkButtonTitle,
-                            (dialog, buttonIndex) -> {
-                                dialog.dismiss();
-                                listener.onResult(true, false, null);
-                            }
-                        )
-                        .setOnCancelListener(
-                            dialog -> {
-                                dialog.dismiss();
-                                listener.onResult(false, true, null);
-                            }
-                        );
+            if (title != null) {
+                builder.setTitle(title);
+            }
+            builder
+                .setMessage(message)
+                .setPositiveButton(alertOkButtonTitle, (dialog, buttonIndex) -> {
+                    dialog.dismiss();
+                    listener.onResult(true, false, null);
+                })
+                .setOnCancelListener((dialog) -> {
+                    dialog.dismiss();
+                    listener.onResult(false, true, null);
+                });
 
-                    AlertDialog dialog = builder.create();
+            AlertDialog dialog = builder.create();
 
-                    dialog.show();
-                }
-            );
+            dialog.show();
+        });
     }
 
     public static void confirm(final Context context, final String message, final Dialog.OnResultListener listener) {
@@ -84,44 +77,33 @@ public class Dialog {
         final String cancelButtonTitle,
         final Dialog.OnResultListener listener
     ) {
-        final String confirmTitle = title == null ? "Confirm" : title;
         final String confirmOkButtonTitle = okButtonTitle == null ? "OK" : okButtonTitle;
         final String confirmCancelButtonTitle = cancelButtonTitle == null ? "Cancel" : cancelButtonTitle;
 
-        new Handler(Looper.getMainLooper())
-            .post(
-                () -> {
-                    final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+        new Handler(Looper.getMainLooper()).post(() -> {
+            final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            if (title != null) {
+                builder.setTitle(title);
+            }
+            builder
+                .setMessage(message)
+                .setPositiveButton(confirmOkButtonTitle, (dialog, buttonIndex) -> {
+                    dialog.dismiss();
+                    listener.onResult(true, false, null);
+                })
+                .setNegativeButton(confirmCancelButtonTitle, (dialog, buttonIndex) -> {
+                    dialog.dismiss();
+                    listener.onResult(false, false, null);
+                })
+                .setOnCancelListener((dialog) -> {
+                    dialog.dismiss();
+                    listener.onResult(false, true, null);
+                });
 
-                    builder
-                        .setMessage(message)
-                        .setTitle(confirmTitle)
-                        .setPositiveButton(
-                            confirmOkButtonTitle,
-                            (dialog, buttonIndex) -> {
-                                dialog.dismiss();
-                                listener.onResult(true, false, null);
-                            }
-                        )
-                        .setNegativeButton(
-                            confirmCancelButtonTitle,
-                            (dialog, buttonIndex) -> {
-                                dialog.dismiss();
-                                listener.onResult(false, false, null);
-                            }
-                        )
-                        .setOnCancelListener(
-                            dialog -> {
-                                dialog.dismiss();
-                                listener.onResult(false, true, null);
-                            }
-                        );
+            AlertDialog dialog = builder.create();
 
-                    AlertDialog dialog = builder.create();
-
-                    dialog.show();
-                }
-            );
+            dialog.show();
+        });
     }
 
     public static void prompt(final Context context, final String message, final Dialog.OnResultListener listener) {
@@ -138,52 +120,41 @@ public class Dialog {
         final String inputText,
         final Dialog.OnResultListener listener
     ) {
-        final String promptTitle = title == null ? "Prompt" : title;
         final String promptOkButtonTitle = okButtonTitle == null ? "OK" : okButtonTitle;
         final String promptCancelButtonTitle = cancelButtonTitle == null ? "Cancel" : cancelButtonTitle;
         final String promptInputPlaceholder = inputPlaceholder == null ? "" : inputPlaceholder;
         final String promptInputText = inputText == null ? "" : inputText;
 
-        new Handler(Looper.getMainLooper())
-            .post(
-                () -> {
-                    final AlertDialog.Builder builder = new AlertDialog.Builder(context);
-                    final EditText input = new EditText(context);
+        new Handler(Looper.getMainLooper()).post(() -> {
+            final AlertDialog.Builder builder = new AlertDialog.Builder(context);
+            final EditText input = new EditText(context);
 
-                    input.setHint(promptInputPlaceholder);
-                    input.setText(promptInputText);
+            input.setHint(promptInputPlaceholder);
+            input.setText(promptInputText);
+            if (title != null) {
+                builder.setTitle(title);
+            }
+            builder
+                .setMessage(message)
+                .setView(input)
+                .setPositiveButton(promptOkButtonTitle, (dialog, buttonIndex) -> {
+                    dialog.dismiss();
 
-                    builder
-                        .setMessage(message)
-                        .setTitle(promptTitle)
-                        .setView(input)
-                        .setPositiveButton(
-                            promptOkButtonTitle,
-                            (dialog, buttonIndex) -> {
-                                dialog.dismiss();
+                    String inputText1 = input.getText().toString().trim();
+                    listener.onResult(true, false, inputText1);
+                })
+                .setNegativeButton(promptCancelButtonTitle, (dialog, buttonIndex) -> {
+                    dialog.dismiss();
+                    listener.onResult(false, true, null);
+                })
+                .setOnCancelListener((dialog) -> {
+                    dialog.dismiss();
+                    listener.onResult(false, true, null);
+                });
 
-                                String inputText1 = input.getText().toString().trim();
-                                listener.onResult(true, false, inputText1);
-                            }
-                        )
-                        .setNegativeButton(
-                            promptCancelButtonTitle,
-                            (dialog, buttonIndex) -> {
-                                dialog.dismiss();
-                                listener.onResult(false, true, null);
-                            }
-                        )
-                        .setOnCancelListener(
-                            dialog -> {
-                                dialog.dismiss();
-                                listener.onResult(false, true, null);
-                            }
-                        );
+            AlertDialog dialog = builder.create();
 
-                    AlertDialog dialog = builder.create();
-
-                    dialog.show();
-                }
-            );
+            dialog.show();
+        });
     }
 }

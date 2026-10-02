@@ -7,6 +7,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.util.WebColor;
+import java.util.Locale;
 
 @CapacitorPlugin(name = "SplashScreen")
 public class SplashScreenPlugin extends Plugin {
@@ -17,7 +18,11 @@ public class SplashScreenPlugin extends Plugin {
     public void load() {
         config = getSplashScreenConfig();
         splashScreen = new SplashScreen(getContext(), config);
-        splashScreen.showOnLaunch(getActivity());
+        if (!bridge.isMinimumWebViewInstalled() && bridge.getConfig().getErrorPath() != null && !config.isLaunchAutoHide()) {
+            return;
+        } else {
+            splashScreen.showOnLaunch(getActivity());
+        }
     }
 
     @PluginMethod
@@ -88,6 +93,8 @@ public class SplashScreenPlugin extends Plugin {
         }
         Integer duration = getConfig().getInt("launchShowDuration", config.getLaunchShowDuration());
         config.setLaunchShowDuration(duration);
+        Integer fadeOutDuration = getConfig().getInt("launchFadeOutDuration", config.getLaunchFadeOutDuration());
+        config.setLaunchFadeOutDuration(fadeOutDuration);
         Boolean autohide = getConfig().getBoolean("launchAutoHide", config.isLaunchAutoHide());
         config.setLaunchAutoHide(autohide);
         if (getConfig().getString("androidSplashResourceName") != null) {
@@ -103,7 +110,7 @@ public class SplashScreenPlugin extends Plugin {
         if (spinnerStyle != null) {
             int spinnerBarStyle = android.R.attr.progressBarStyleLarge;
 
-            switch (spinnerStyle.toLowerCase()) {
+            switch (spinnerStyle.toLowerCase(Locale.ROOT)) {
                 case "horizontal":
                     spinnerBarStyle = android.R.attr.progressBarStyleHorizontal;
                     break;

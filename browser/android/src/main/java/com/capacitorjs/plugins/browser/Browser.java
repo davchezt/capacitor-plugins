@@ -1,17 +1,18 @@
 package com.capacitorjs.plugins.browser;
 
+import static androidx.browser.customtabs.CustomTabsIntent.SHARE_STATE_ON;
+
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.browser.customtabs.CustomTabsCallback;
-import androidx.browser.customtabs.CustomTabsClient;
-import androidx.browser.customtabs.CustomTabsIntent;
-import androidx.browser.customtabs.CustomTabsServiceConnection;
-import androidx.browser.customtabs.CustomTabsSession;
+import androidx.browser.customtabs.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The Browser class implements Custom Chrome Tabs. See
@@ -41,11 +42,15 @@ public class Browser {
     private BrowserEventListener browserEventListener;
 
     private Context context;
-    private static final String CUSTOM_TAB_PACKAGE_NAME = "com.android.chrome"; // Change when in stable
+    private static final String FALLBACK_CUSTOM_TAB_PACKAGE_NAME = "com.android.chrome";
     private CustomTabsClient customTabsClient;
     private CustomTabsSession browserSession;
     private boolean isInitialLoad = false;
-    private EventGroup group;
+    private final AtomicBoolean browserFinishedFired = new AtomicBoolean(false);
+
+    @Nullable
+    private ActivityResultLauncher<Intent> customTabLauncher;
+
     private CustomTabsServiceConnection connection = new CustomTabsServiceConnection() {
         @Override
         public void onCustomTabsServiceConnected(ComponentName name, CustomTabsClient client) {
@@ -63,7 +68,6 @@ public class Browser {
      */
     public Browser(@NonNull Context context) {
         this.context = context;
-        this.group = new EventGroup(this::handleGroupCompletion);
     }
 
     /**
@@ -84,6 +88,16 @@ public class Browser {
     }
 
     /**
+     * Provide the ActivityResultLauncher used to open the Custom Tab. When
+     * set, the Custom Tab is launched via this launcher so that
+     * {@link #notifyBrowserFinished()} can be triggered from the launcher's
+     * result callback (only when the tab activity actually terminates).
+     */
+    public void setCustomTabLauncher(@Nullable ActivityResultLauncher<Intent> launcher) {
+        this.customTabLauncher = launcher;
+    }
+
+    /**
      * Open the browser to the specified URL.
      * @param url
      */
@@ -99,27 +113,35 @@ public class Browser {
     public void open(Uri url, @Nullable Integer toolbarColor) {
         CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder(getCustomTabsSession());
 
-        builder.addDefaultShareMenuItem();
+        builder.setShareState(SHARE_STATE_ON);
 
         if (toolbarColor != null) {
-            builder.setToolbarColor(toolbarColor.intValue());
+            CustomTabColorSchemeParams params = new CustomTabColorSchemeParams.Builder().setToolbarColor(toolbarColor.intValue()).build();
+            builder.setDefaultColorSchemeParams(params);
         }
 
         CustomTabsIntent tabsIntent = builder.build();
         tabsIntent.intent.putExtra(Intent.EXTRA_REFERRER, Uri.parse(Intent.URI_ANDROID_APP_SCHEME + "//" + context.getPackageName()));
 
         isInitialLoad = true;
-        group.reset();
-        tabsIntent.launchUrl(context, url);
+        browserFinishedFired.set(false);
+        if (customTabLauncher != null) {
+            tabsIntent.intent.setData(url);
+            customTabLauncher.launch(tabsIntent.intent);
+        } else {
+            tabsIntent.launchUrl(context, url);
+        }
     }
 
     /**
      * Bind to the custom tabs service, required to be called in the `onResume` lifecycle event.
      */
     public boolean bindService() {
-        boolean result = CustomTabsClient.bindCustomTabsService(context, CUSTOM_TAB_PACKAGE_NAME, connection);
-        group.leave();
-        return result;
+        String customTabPackageName = CustomTabsClient.getPackageName(context, null);
+        if (null == customTabPackageName) {
+            customTabPackageName = FALLBACK_CUSTOM_TAB_PACKAGE_NAME;
+        }
+        return CustomTabsClient.bindCustomTabsService(context, customTabPackageName, connection);
     }
 
     /**
@@ -127,7 +149,6 @@ public class Browser {
      */
     public void unbindService() {
         context.unbindService(connection);
-        group.enter();
     }
 
     private void handledNavigationEvent(int navigationEvent) {
@@ -140,20 +161,14 @@ public class Browser {
                     isInitialLoad = false;
                 }
                 break;
-            case CustomTabsCallback.TAB_HIDDEN:
-                group.leave();
-                break;
-            case CustomTabsCallback.TAB_SHOWN:
-                group.enter();
-                break;
         }
     }
 
-    private void handleGroupCompletion() {
-        // events such as TAB_HIDDEN and onPause can occur for multiple reasons and in
-        // different sequences so there is no single point to fire this. so we rely on the
-        // event group to track when it is safe to assume that the browser is done.
-        if (browserEventListener != null) {
+    public void notifyBrowserFinished() {
+        // Guarded so the finished event is delivered at most once per open()
+        // session, even when multiple signals (ActivityResult, onMinimized)
+        // fire for the same browser instance.
+        if (browserFinishedFired.compareAndSet(false, true) && browserEventListener != null) {
             browserEventListener.onBrowserEvent(BROWSER_FINISHED);
         }
     }
@@ -165,15 +180,26 @@ public class Browser {
         }
 
         if (browserSession == null) {
-            browserSession =
-                customTabsClient.newSession(
-                    new CustomTabsCallback() {
-                        @Override
-                        public void onNavigationEvent(int navigationEvent, Bundle extras) {
-                            handledNavigationEvent(navigationEvent);
+            browserSession = customTabsClient.newSession(
+                new CustomTabsCallback() {
+                    @Override
+                    public void onNavigationEvent(int navigationEvent, Bundle extras) {
+                        handledNavigationEvent(navigationEvent);
+                    }
+
+                    @Override
+                    public void onMinimized(@NonNull Bundle extras) {
+                        // On Android <14 the ActivityResult callback is not
+                        // reliably delivered when the Custom Tab is dismissed from PiP,
+                        // so we notify listeners as the Custom Tab enters PiP as a
+                        // compromise. Skipped on 14+ where the ActivityResult
+                        // callback handles it correctly.
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                            notifyBrowserFinished();
                         }
                     }
-                );
+                }
+            );
         }
 
         return browserSession;
